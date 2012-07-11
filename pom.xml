@@ -89,15 +89,20 @@
       <version>1.0</version>
     </dependency>
     <dependency>
-	  <groupId>org.eclipse.jetty</groupId>
-	  <artifactId>jetty-server</artifactId>
-	  <version>8.1.4.v20120524</version>
-	</dependency>
-	<dependency>
-	  <groupId>org.eclipse.jetty</groupId>
-	  <artifactId>jetty-servlet</artifactId>
-	  <version>8.1.4.v20120524</version>
-	</dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-server</artifactId>
+      <version>8.1.4.v20120524</version>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-webapp</artifactId>
+      <version>8.1.4.v20120524</version>
+    </dependency>
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-servlet</artifactId>
+      <version>8.1.4.v20120524</version>
+    </dependency>
     <dependency>
       <groupId>com.ettrema</groupId>
       <artifactId>milton-api</artifactId>
@@ -185,15 +190,7 @@
         <groupId>org.mortbay.jetty</groupId>
         <artifactId>jetty-maven-plugin</artifactId>
         <configuration>
-          <connectors>
-            <connector implementation="org.eclipse.jetty.server.nio.SelectChannelConnector">
-              <!-- Choose HTTP port -->
-              <port>8984</port>
-              <!-- Optionally limit HTTP host
-              <host>127.0.0.1</host> -->
-              <maxIdleTime>60000</maxIdleTime>
-            </connector>
-          </connectors>
+          <jettyConfig>${project.basedir}/src/main/resources/.basexjetty</jettyConfig>
           <webAppConfig>
             <contextPath>/</contextPath>
           </webAppConfig>

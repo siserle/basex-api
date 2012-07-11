@@ -8,14 +8,10 @@ import java.net.*;
 
 import org.basex.core.*;
 import org.basex.http.*;
-import org.basex.http.rest.*;
-import org.basex.http.restxq.*;
-import org.basex.http.webdav.*;
 import org.basex.util.*;
 import org.eclipse.jetty.server.*;
-import org.eclipse.jetty.server.handler.*;
 import org.eclipse.jetty.server.nio.*;
-import org.eclipse.jetty.servlet.*;
+import org.eclipse.jetty.xml.*;
 
 /**
  * This is the main class for the starting the database HTTP services.
@@ -26,13 +22,6 @@ import org.eclipse.jetty.servlet.*;
 public final class BaseXHTTP {
   /** Database context. */
   final Context context = HTTPContext.init();
-
-  /** Activate WebDAV. */
-  private boolean webdav = true;
-  /** Activate REST. */
-  private boolean rest = true;
-  /** Activate RESTXQ. */
-  private boolean restxq = true;
 
   /** Server/local mode. */
   private boolean server;
@@ -54,6 +43,7 @@ public final class BaseXHTTP {
     try {
       new BaseXHTTP(args);
     } catch(final Exception ex) {
+      Util.debug(ex);
       Util.errln(ex);
       System.exit(1);
     }
@@ -73,16 +63,32 @@ public final class BaseXHTTP {
     final MainProp mprop = context.mprop;
     final int port = mprop.num(MainProp.SERVERPORT);
     final int eport = mprop.num(MainProp.EVENTPORT);
-    final int hport = mprop.num(MainProp.HTTPPORT);
+
+    /* [DK] Maybe this helps to specify the same HTTP path for all configurations.
+     * Not sure, though, if this is still supported>
+     * http://docs.codehaus.org/display/JETTY/SystemProperties */
+    //System.setProperty("jetty.home", mprop.get(MainProp.HTTPPATH));
+
+    /* [DK] We also need a solution what to do with HTTPPORT and STOPPORT.
+     * They should both be placed both at the same location (ideally: in .basexjetty). */
+    int hport = mprop.num(MainProp.HTTPPORT);
     final int sport = mprop.num(MainProp.STOPPORT);
+
+    // create jetty instance
+    jetty = (Server) new XmlConfiguration(JettyConfig.get()).configure();
+    for(final Connector c : jetty.getConnectors()) {
+      if(c instanceof SelectChannelConnector) {
+        hport = c.getPort();
+        break;
+      }
+    }
+
     // check if ports are distinct
     int same = -1;
     if(port == eport || port == hport || port == sport) same = port;
     else if(eport == hport || eport == sport) same = eport;
     else if(hport == sport) same = hport;
     if(same != -1) throw new BaseXException(PORT_TWICE_X, same);
-
-    final String shost = mprop.get(MainProp.SERVERHOST);
 
     if(service) {
       start(hport, args);
@@ -120,35 +126,8 @@ public final class BaseXHTTP {
       Util.outln(CONSOLE + HTTP + ' ' + SRV_STARTED, SERVERMODE);
     }
 
-    jetty = new Server();
-    final Connector conn = new SelectChannelConnector();
-    if(!shost.isEmpty()) conn.setHost(shost);
-    conn.setPort(hport);
-    jetty.addConnector(conn);
-
-    final ServletContextHandler jctx =
-        new ServletContextHandler(jetty, "/",
-            ServletContextHandler.SESSIONS);
-
-    if(rest) {
-      jctx.addServlet(RESTServlet.class, "/rest/*");
-    }
-    if(restxq) {
-      jctx.addServlet(RestXqServlet.class, "/restxq/*");
-    }
-    if(webdav) {
-      jctx.addServlet(WebDAVServlet.class, "/webdav/*");
-    }
-
-    final ResourceHandler rh = new ResourceHandler();
-    rh.setWelcomeFiles(new String[] { "index.xml", "index.xhtml", "index.html" });
-    rh.setResourceBase(context.mprop.get(MainProp.HTTPPATH));
-
-    final HandlerList hl = new HandlerList();
-    hl.addHandler(rh);
-    hl.addHandler(jctx);
-    jetty.setHandler(hl);
     jetty.start();
+    final String shost = mprop.get(MainProp.SERVERHOST);
     new StopServer(sport, shost).start();
 
     // show info when HTTP server is aborted
@@ -161,12 +140,12 @@ public final class BaseXHTTP {
     });
   }
 
-  /**
+   /**
    * Stops the server.
    * @throws Exception exception
    */
   public void stop() throws Exception {
-    // notify the jetty monitor, that it should stop
+    // notify the jetty monitor that it should stop
     stop(context.mprop.num(MainProp.STOPPORT));
     // server has been started as separate process and need to be stopped
     if(server) {
@@ -209,9 +188,6 @@ public final class BaseXHTTP {
             context.mprop.set(MainProp.PORT, arg.number());
             context.mprop.set(MainProp.SERVERPORT, context.mprop.num(MainProp.PORT));
             break;
-          case 'R': // deactivate REST service
-            rest = false;
-            break;
           case 'P': // specify password
             System.setProperty(DBPASS, arg.string());
             break;
@@ -226,12 +202,6 @@ public final class BaseXHTTP {
             break;
           case 'v': // specify user name
             System.setProperty(DBVERBOSE, Boolean.TRUE.toString());
-            break;
-          case 'W': // deactivate WebDAV service
-            webdav = false;
-            break;
-          case 'X': // deactivate RESTXQ service
-            restxq = false;
             break;
           case 'z': // suppress logging
             quiet = true;
